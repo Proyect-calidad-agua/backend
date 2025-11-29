@@ -1,4 +1,4 @@
-const Sensor = require('../models/Sensor');
+const SensorModel = require('../models/sensorModel');
 
 const determineStatus = (temp, turb, tds) => {
     if (temp > 28 || turb > 5 || tds > 500) return 'critico';
@@ -8,6 +8,7 @@ const determineStatus = (temp, turb, tds) => {
 
 const checkAndSaveAlerts = async (temp, turb, tds) => {
     const alerts = [];
+    const timestamp = new Date();
 
     if (temp > 28) alerts.push({ tipo: 'temperatura', valor: temp, nivel: 'critico' });
     else if (temp > 25) alerts.push({ tipo: 'temperatura', valor: temp, nivel: 'advertencia' });
@@ -20,7 +21,7 @@ const checkAndSaveAlerts = async (temp, turb, tds) => {
 
     for (const alert of alerts) {
         try {
-            await Sensor.createAlert(alert);
+            await SensorModel.createAlerta({ ...alert, fecha: timestamp });
             console.log(`Alerta guardada: ${alert.tipo} - ${alert.nivel}`);
         } catch (err) {
             console.error('Error guardando alerta:', err);
@@ -28,7 +29,7 @@ const checkAndSaveAlerts = async (temp, turb, tds) => {
     }
 };
 
-exports.registerMeasurement = async (req, res) => {
+exports.registrarDatos = async (req, res) => {
     try {
         const { temperatura, turbidez, tds, origen = 'esp32_1' } = req.body;
 
@@ -37,41 +38,60 @@ exports.registerMeasurement = async (req, res) => {
         }
 
         const estado = determineStatus(temperatura, turbidez, tds);
+        const fecha = new Date();
 
-        // 1. Guardar en BD
-        const insertId = await Sensor.createMeasurement({ temperatura, turbidez, tds, estado, origen });
+        // 1. Guardar en Base de Datos
+        const insertId = await SensorModel.createMedicion({
+            temperatura,
+            turbidez,
+            tds,
+            estado,
+            origen,
+            fecha
+        });
 
-        // 2. Verificar alertas
+        // 2. Verificar y guardar alertas
         await checkAndSaveAlerts(temperatura, turbidez, tds);
 
-        // 3. Emitir WebSocket
+        // 3. Emitir datos en tiempo real a los clientes conectados
         const io = req.app.get('io');
+        const sensorData = {
+            id: insertId,
+            temperature: parseFloat(temperatura),
+            turbidez: parseFloat(turbidez),
+            tds: parseFloat(tds),
+            timestamp: fecha.toISOString(),
+            status: estado
+        };
+
         if (io) {
-            const sensorData = {
-                id: insertId,
-                temperature: parseFloat(temperatura),
-                turbidez: parseFloat(turbidez),
-                tds: parseFloat(tds),
-                timestamp: new Date().toISOString(),
-                status: estado
-            };
             io.emit('sensor-data', sensorData);
         }
 
         res.status(201).json({ message: 'Datos registrados correctamente', id: insertId });
 
     } catch (error) {
-        console.error('Error en registerMeasurement:', error);
+        console.error('Error procesando datos del sensor:', error);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
 
-exports.getHistory = async (req, res) => {
+exports.obtenerHistorial = async (req, res) => {
     try {
-        const measurements = await Sensor.getRecentMeasurements();
-        res.json(measurements);
+        const historial = await SensorModel.getHistorial();
+        res.json(historial);
     } catch (error) {
-        console.error('Error en getHistory:', error);
+        console.error('Error obteniendo historial:', error);
         res.status(500).json({ error: 'Error obteniendo historial' });
+    }
+};
+
+exports.obtenerAlertas = async (req, res) => {
+    try {
+        const alertas = await SensorModel.getAlertas();
+        res.json(alertas);
+    } catch (error) {
+        console.error('Error obteniendo alertas:', error);
+        res.status(500).json({ error: 'Error obteniendo alertas' });
     }
 };

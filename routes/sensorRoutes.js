@@ -2,10 +2,13 @@ const express = require('express');
 const router = express.Router();
 const sensorController = require('../controllers/sensorController');
 
-// POST /api/sensores/registrar
-router.post('/registrar', sensorController.registerMeasurement);
+// Ruta para registrar datos del sensor (ESP32)
+router.post('/sensores/registrar', sensorController.registrarDatos);
 
-// GET /api/sensores/historial (o /api/mediciones/historial según prefieras, ajustaré en server.js)
-router.get('/historial', sensorController.getHistory);
+// Ruta para obtener historial de mediciones
+router.get('/mediciones/historial', sensorController.obtenerHistorial);
+
+// Ruta para obtener historial de alertas
+router.get('/alertas/historial', sensorController.obtenerAlertas);
 
 module.exports = router;
