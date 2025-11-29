@@ -3,7 +3,6 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Crear el pool de conexiones
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -14,7 +13,6 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
-// Promisify para usar async/await
 const promisePool = pool.promise();
 
 module.exports = promisePool;

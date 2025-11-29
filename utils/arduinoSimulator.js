@@ -1,27 +1,48 @@
 /**
  * Simula datos de sensores de Arduino para pruebas.
- * Genera valores aleatorios realistas para pH, Temperatura, Turbidez y TDS.
+ * Envía peticiones HTTP POST al servidor local, simulando un ESP32 real.
  */
+const http = require('http');
 
 function startSimulation(io) {
-    console.log('Iniciando simulación de sensores Arduino...');
+    console.log('Iniciando simulación de sensores Arduino (Modo HTTP)...');
 
     setInterval(() => {
         // Generar datos aleatorios con rangos realistas
-        const data = {
-            ph: parseFloat((6.5 + Math.random() * (8.5 - 6.5)).toFixed(2)), // pH entre 6.5 y 8.5
-            temperature: parseFloat((20 + Math.random() * (30 - 20)).toFixed(1)), // Temp entre 20 y 30 °C
-            turbidity: parseFloat((0 + Math.random() * 50).toFixed(2)), // Turbidez entre 0 y 50 NTU
-            tds: parseFloat((100 + Math.random() * (500 - 100)).toFixed(0)), // TDS entre 100 y 500 ppm
-            timestamp: new Date().toISOString()
+        // A veces generamos valores de alerta para probar el sistema
+        const isAlert = Math.random() > 0.8;
+
+        const data = JSON.stringify({
+            temperatura: parseFloat((isAlert ? 29 + Math.random() * 5 : 20 + Math.random() * 8).toFixed(1)),
+            turbidez: parseFloat((isAlert ? 6 + Math.random() * 10 : 0 + Math.random() * 4).toFixed(2)),
+            tds: parseFloat((isAlert ? 550 + Math.random() * 200 : 100 + Math.random() * 300).toFixed(0)),
+            origen: 'simulador_1'
+        });
+
+        const options = {
+            hostname: 'localhost',
+            port: process.env.PORT || 5000,
+            path: '/api/sensores/registrar',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': data.length
+            }
         };
 
-        // Emitir datos a todos los clientes conectados
-        io.emit('sensor-data', data);
+        const req = http.request(options, (res) => {
+            // Silenciar salida para no ensuciar consola, o descomentar para debug
+            // console.log(`Simulación: Estado ${res.statusCode}`);
+        });
 
-        // Opcional: Log para ver los datos en consola
-        // console.log('Datos enviados:', data);
-    }, 2000); // Enviar cada 2 segundos
+        req.on('error', (error) => {
+            console.error('Error en simulación (¿Servidor apagado?):', error.message);
+        });
+
+        req.write(data);
+        req.end();
+
+    }, 3000); // Enviar cada 3 segundos
 }
 
 module.exports = { startSimulation };
